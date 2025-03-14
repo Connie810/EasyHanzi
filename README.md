@@ -1,0 +1,2 @@
+# EasyHanzi
+data for EasyHanzi
