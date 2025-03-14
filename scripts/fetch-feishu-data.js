@@ -61,7 +61,10 @@ async function getSheetList(token, spreadsheetToken) {
     }
 
     const sheets = response.data.data.sheets;
-    console.log('获取到的工作表:', sheets.map(s => s.title).join(', '));
+    console.log('获取到的工作表:', sheets.map(s => ({
+      title: s.title,
+      sheet_id: s.sheet_id
+    })));
     return sheets;
   } catch (error) {
     console.error('获取工作表列表错误:', error);
@@ -140,21 +143,28 @@ async function fetchAndConvertData() {
     
     // 获取所有工作表信息
     const sheets = await getSheetList(token, FEISHU_SPREADSHEET_TOKEN);
-    const sheetsMap = new Map(sheets.map(s => [s.title, s.sheet_id]));
+    
+    // 创建工作表映射
+    const sheetsMap = {};
+    sheets.forEach(sheet => {
+      sheetsMap[sheet.title] = sheet.sheet_id;
+    });
+    
+    console.log('工作表映射:', sheetsMap);
     
     // 验证所需的工作表是否都存在
     for (const [key, name] of Object.entries(SHEET_NAMES)) {
-      if (!sheetsMap.has(name)) {
+      if (!sheetsMap[name]) {
         throw new Error(`找不到工作表: ${name}`);
       }
     }
     
     // 获取各个表格的数据
     const [courses, characters, words, sentences] = await Promise.all([
-      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetsMap.get(SHEET_NAMES.courses), SHEET_NAMES.courses),
-      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetsMap.get(SHEET_NAMES.characters), SHEET_NAMES.characters),
-      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetsMap.get(SHEET_NAMES.words), SHEET_NAMES.words),
-      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetsMap.get(SHEET_NAMES.sentences), SHEET_NAMES.sentences)
+      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetsMap[SHEET_NAMES.courses], SHEET_NAMES.courses),
+      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetsMap[SHEET_NAMES.characters], SHEET_NAMES.characters),
+      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetsMap[SHEET_NAMES.words], SHEET_NAMES.words),
+      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetsMap[SHEET_NAMES.sentences], SHEET_NAMES.sentences)
     ]);
     
     if (!courses.length && !characters.length && !words.length && !sentences.length) {
