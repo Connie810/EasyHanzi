@@ -15,128 +15,78 @@ const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET;
 const FEISHU_SPREADSHEET_TOKEN = process.env.FEISHU_SPREADSHEET_TOKEN;
 
 // 工作表名称配置
-const SHEET_NAMES = {
-  courses: 'Courses',
-  characters: 'Characters',
-  words: 'Words',
-  sentences: 'Sentences'
-};
+const SHEET_NAMES = ['Courses', 'Characters', 'Words', 'Sentences'];
+
+// 创建 axios 实例
+const feishuAPI = axios.create({
+  baseURL: 'https://open.feishu.cn/open-apis',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json; charset=utf-8'
+  }
+});
 
 // 获取飞书访问令牌
 async function getFeishuToken() {
   try {
-    const response = await axios.post('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+    const response = await feishuAPI.post('/auth/v3/tenant_access_token/internal', {
       app_id: FEISHU_APP_ID,
       app_secret: FEISHU_APP_SECRET
     });
     
-    if (response.data.code === 0) {
-      return response.data.tenant_access_token;
-    } else {
+    if (response.data.code !== 0) {
       throw new Error(`获取飞书令牌失败: ${response.data.msg}`);
     }
+    
+    return response.data.tenant_access_token;
   } catch (error) {
-    console.error('获取飞书令牌错误:', error);
+    console.error('获取飞书令牌错误:', error.message);
     throw error;
   }
 }
 
-// 获取所有工作表信息
-async function getSheetList(token, spreadsheetToken) {
+// 获取工作表数据
+async function getSheetData(token, spreadsheetToken, sheetName) {
   try {
-    console.log('正在获取工作表列表...');
+    console.log(`正在获取工作表 ${sheetName} 的数据...`);
     
-    const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}`;
-    console.log('请求 URL:', url);
-
-    const response = await axios.get(url, {
+    // 获取工作表范围数据
+    const response = await feishuAPI.get(`/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetName}!A1:Z3000`, {
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Bearer ${token}`
       }
     });
-
-    if (response.data.code !== 0) {
-      throw new Error(`获取工作表列表失败: ${response.data.msg}`);
-    }
-
-    console.log('完整响应数据:', JSON.stringify(response.data, null, 2));
-
-    const sheets = response.data.data.sheets;
-    if (!sheets || !Array.isArray(sheets)) {
-      throw new Error('未获取到工作表列表');
-    }
-
-    const processedSheets = sheets.map(sheet => ({
-      title: sheet.title || sheet.properties?.title,
-      sheet_id: sheet.sheet_id || sheet.properties?.sheetId
-    }));
-
-    console.log('处理后的工作表数据:', processedSheets);
-    return processedSheets;
-  } catch (error) {
-    console.error('获取工作表列表错误:', error);
-    if (error.response) {
-      console.error('错误详情:', {
-        状态码: error.response.status,
-        响应数据: error.response.data
-      });
-    }
-    throw error;
-  }
-}
-
-// 从飞书表格获取数据
-async function getSheetData(token, spreadsheetToken, sheetId, sheetName) {
-  try {
-    console.log(`正在获取表格数据: ${sheetName} (sheet_id: ${sheetId})`);
-    
-    const requestHeaders = {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-    
-    const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!A1:Z3000`;
-    console.log(`获取表格数据: ${url}`);
-    
-    const response = await axios.get(url, { headers: requestHeaders });
     
     if (response.data.code !== 0) {
-      console.error('API 响应错误:', response.data);
-      throw new Error(`获取表格数据失败: ${response.data.msg}`);
+      throw new Error(`获取工作表数据失败: ${response.data.msg}`);
     }
     
-    const rows = response.data.data.values;
-    if (!rows || rows.length < 2) {
-      console.warn(`警告: 表格 ${sheetName} 数据为空或只有表头`);
+    const rows = response.data.data.values || [];
+    if (rows.length < 2) {
+      console.warn(`警告: 工作表 ${sheetName} 数据为空或只有表头`);
       return [];
     }
     
-    const columnHeaders = rows[0];
-    console.log(`表格 ${sheetName} 的列头:`, columnHeaders);
-    
-    if (columnHeaders.length === 0) {
-      throw new Error(`表格 ${sheetName} 没有列头`);
-    }
-    
-    const result = rows.slice(1).map(row => {
+    const headers = rows[0];
+    const data = rows.slice(1).map(row => {
       const item = {};
-      columnHeaders.forEach((header, colIndex) => {
-        item[header] = row[colIndex] || '';
+      headers.forEach((header, index) => {
+        item[header] = row[index] || '';
       });
       return item;
-    }).filter(item => Object.values(item).some(value => value !== ''));
+    }).filter(item => Object.values(item).some(v => v !== ''));
     
-    console.log(`表格 ${sheetName} 数据统计:`, {
+    console.log(`工作表 ${sheetName} 数据获取成功:`, {
       总行数: rows.length,
-      有效数据行: result.length,
-      列数: columnHeaders.length
+      有效数据行: data.length
     });
     
-    return result;
+    return data;
   } catch (error) {
-    console.error(`获取表格 ${sheetName} 数据错误:`, error);
-    console.error('完整错误信息:', JSON.stringify(error.response?.data || error.message, null, 2));
+    if (error.response?.status === 404) {
+      console.error(`工作表 ${sheetName} 不存在`);
+      return [];
+    }
     throw error;
   }
 }
@@ -145,58 +95,49 @@ async function getSheetData(token, spreadsheetToken, sheetId, sheetName) {
 async function fetchAndConvertData() {
   try {
     console.log('开始从飞书获取数据...');
+    console.log('使用的电子表格 Token:', FEISHU_SPREADSHEET_TOKEN);
     
     const token = await getFeishuToken();
-    console.log('成功获取飞书访问令牌');
+    console.log('成功获取访问令牌');
     
-    // 获取所有工作表信息
-    const sheets = await getSheetList(token, FEISHU_SPREADSHEET_TOKEN);
+    const results = {};
     
-    // 创建工作表映射
-    const sheetsMap = {};
-    sheets.forEach(sheet => {
-      sheetsMap[sheet.title] = sheet.sheet_id;
-    });
-    
-    console.log('工作表映射:', sheetsMap);
-    
-    // 验证所需的工作表是否都存在
-    for (const [key, name] of Object.entries(SHEET_NAMES)) {
-      if (!sheetsMap[name]) {
-        throw new Error(`找不到工作表: ${name}`);
-      }
+    // 串行获取数据以避免并发问题
+    for (const sheetName of SHEET_NAMES) {
+      const data = await getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetName);
+      results[sheetName.toLowerCase()] = data;
     }
     
-    // 获取各个表格的数据
-    const [courses, characters, words, sentences] = await Promise.all([
-      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetsMap[SHEET_NAMES.courses], SHEET_NAMES.courses),
-      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetsMap[SHEET_NAMES.characters], SHEET_NAMES.characters),
-      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetsMap[SHEET_NAMES.words], SHEET_NAMES.words),
-      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetsMap[SHEET_NAMES.sentences], SHEET_NAMES.sentences)
-    ]);
-    
-    if (!courses.length && !characters.length && !words.length && !sentences.length) {
-      throw new Error('所有表格都没有获取到数据');
+    // 验证数据
+    const hasData = Object.values(results).some(arr => arr.length > 0);
+    if (!hasData) {
+      throw new Error('所有工作表都没有获取到有效数据');
     }
     
     const appData = {
       lastUpdated: new Date().toISOString(),
-      courses,
-      characters,
-      words,
-      sentences
+      courses: results.courses || [],
+      characters: results.characters || [],
+      words: results.words || [],
+      sentences: results.sentences || []
     };
     
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(appData, null, 2));
-    console.log(`数据已获取并保存到 ${OUTPUT_FILE}`);
+    console.log(`数据已保存到: ${OUTPUT_FILE}`);
     console.log('数据统计:', {
-      课程: courses.length,
-      汉字: characters.length,
-      词语: words.length,
-      句子: sentences.length
+      课程: appData.courses.length,
+      汉字: appData.characters.length,
+      词语: appData.words.length,
+      句子: appData.sentences.length
     });
   } catch (error) {
-    console.error('获取数据失败:', error);
+    console.error('数据同步失败:', error.message);
+    if (error.response) {
+      console.error('API 错误详情:', {
+        状态码: error.response.status,
+        响应数据: error.response.data
+      });
+    }
     process.exit(1);
   }
 }
