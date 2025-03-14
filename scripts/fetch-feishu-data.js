@@ -15,12 +15,12 @@ const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET;
 const FEISHU_SPREADSHEET_TOKEN = process.env.FEISHU_SPREADSHEET_TOKEN;
 
 // 工作表名称配置
-const SHEET_RANGES = [
-  'Courses!A1:Z3000',
-  'Characters!A1:Z3000',
-  'Words!A1:Z3000',
-  'Sentences!A1:Z3000'
-];
+const SHEET_NAMES = {
+  courses: 'Courses',
+  characters: 'Characters',
+  words: 'Words',
+  sentences: 'Sentences'
+};
 
 // 创建 axios 实例
 const feishuAPI = axios.create({
@@ -46,6 +46,32 @@ async function getFeishuToken() {
     return response.data.tenant_access_token;
   } catch (error) {
     console.error('获取飞书令牌错误:', error.message);
+    throw error;
+  }
+}
+
+// 获取工作表信息
+async function getSheetInfo(token, spreadsheetToken) {
+  try {
+    const response = await feishuAPI.get(`/sheets/v3/spreadsheets/${spreadsheetToken}/sheets`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (response.data.code !== 0) {
+      throw new Error(`获取工作表信息失败: ${response.data.msg}`);
+    }
+
+    const sheets = response.data.data.sheets;
+    console.log('获取到的工作表列表:', sheets.map(s => ({ title: s.title, id: s.sheet_id })));
+    
+    return sheets.reduce((acc, sheet) => {
+      acc[sheet.title] = sheet.sheet_id;
+      return acc;
+    }, {});
+  } catch (error) {
+    console.error('获取工作表信息错误:', error.message);
     throw error;
   }
 }
@@ -76,17 +102,26 @@ async function fetchAndConvertData() {
     const token = await getFeishuToken();
     console.log('成功获取访问令牌');
     
-    // 使用批量读取接口获取所有工作表数据
-    const ranges = SHEET_RANGES.join(',');
-    const url = `/sheets/v2/spreadsheets/${FEISHU_SPREADSHEET_TOKEN}/values_batch_get`;
+    // 获取工作表信息
+    const sheetsInfo = await getSheetInfo(token, FEISHU_SPREADSHEET_TOKEN);
+    console.log('工作表映射:', sheetsInfo);
     
-    const response = await feishuAPI.get(url, {
+    // 构建批量读取范围
+    const ranges = Object.entries(SHEET_NAMES).map(([key, name]) => {
+      const sheetId = sheetsInfo[name];
+      if (!sheetId) {
+        throw new Error(`找不到工作表: ${name}`);
+      }
+      return `${sheetId}!A1:Z3000`;
+    });
+
+    // 使用批量读取接口获取所有工作表数据
+    const response = await feishuAPI.get(`/sheets/v3/spreadsheets/${FEISHU_SPREADSHEET_TOKEN}/values_batch_get`, {
       headers: {
         'Authorization': `Bearer ${token}`
       },
       params: {
-        ranges,
-        valueRenderOption: 'ToString'
+        ranges: ranges.join(',')
       }
     });
 
