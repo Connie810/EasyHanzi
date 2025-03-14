@@ -1,10 +1,8 @@
 name: Sync Data to OSS
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'data/input/**'
+  schedule:
+    - cron: '0 2 * * *'  # 每天凌晨2点执行
   workflow_dispatch:  # 允许手动触发
 
 jobs:
@@ -19,10 +17,14 @@ jobs:
           node-version: '14'
           
       - name: Install dependencies
-        run: npm install xlsx ali-oss
+        run: npm install axios ali-oss
         
-      - name: Convert data
-        run: node scripts/convert-data.js
+      - name: Fetch and convert data
+        run: node scripts/fetch-feishu-data.js
+        env:
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
         
       - name: Upload to Aliyun OSS
         run: node scripts/upload-to-oss.js
