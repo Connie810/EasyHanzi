@@ -50,10 +50,13 @@ async function getSheetData(token, spreadsheetToken, sheetName) {
   try {
     console.log(`正在获取工作表 ${sheetName} 的数据...`);
     
-    // 获取工作表范围数据
-    const response = await feishuAPI.get(`/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetName}!A1:Z3000`, {
+    const rangeApi = `${sheetName}!A1:Z3000`;
+    const response = await feishuAPI.get(`/sheets/v2/spreadsheets/${spreadsheetToken}/values/${rangeApi}`, {
       headers: {
         'Authorization': `Bearer ${token}`
+      },
+      params: {
+        valueRenderOption: 'ToString'
       }
     });
     
@@ -84,7 +87,8 @@ async function getSheetData(token, spreadsheetToken, sheetName) {
     return data;
   } catch (error) {
     if (error.response?.status === 404) {
-      console.error(`工作表 ${sheetName} 不存在`);
+      console.error(`工作表 ${sheetName} 不存在或无法访问`);
+      console.error('完整错误信息:', error.response?.data);
       return [];
     }
     throw error;
@@ -97,14 +101,33 @@ async function fetchAndConvertData() {
     console.log('开始从飞书获取数据...');
     console.log('使用的电子表格 Token:', FEISHU_SPREADSHEET_TOKEN);
     
+    // 先获取电子表格元数据
     const token = await getFeishuToken();
     console.log('成功获取访问令牌');
     
-    const results = {};
+    // 获取电子表格信息
+    const metaResponse = await feishuAPI.get(`/sheets/v2/spreadsheets/${FEISHU_SPREADSHEET_TOKEN}/sheets`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     
-    // 串行获取数据以避免并发问题
+    if (metaResponse.data.code !== 0) {
+      throw new Error(`获取电子表格信息失败: ${metaResponse.data.msg}`);
+    }
+    
+    const sheets = metaResponse.data.data.sheets;
+    console.log('获取到的工作表列表:', sheets.map(s => s.title));
+    
+    const results = {};
     for (const sheetName of SHEET_NAMES) {
-      const data = await getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheetName);
+      const sheet = sheets.find(s => s.title === sheetName);
+      if (!sheet) {
+        console.warn(`警告: 未找到工作表 ${sheetName}`);
+        results[sheetName.toLowerCase()] = [];
+        continue;
+      }
+      const data = await getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheet.title);
       results[sheetName.toLowerCase()] = data;
     }
     
