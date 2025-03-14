@@ -36,14 +36,14 @@ async function getFeishuToken() {
 // 从飞书表格获取数据
 async function getSheetData(token, spreadsheetToken, sheetId) {
   try {
-    const headers = {
+    const requestHeaders = {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     };
     
     const response = await axios.get(
       `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}`,
-      { headers }
+      { headers: requestHeaders }
     );
     
     if (response.data.code !== 0) {
@@ -57,12 +57,12 @@ async function getSheetData(token, spreadsheetToken, sheetId) {
     }
     
     // 第一行作为表头
-    const headers = rows[0];
+    const columnHeaders = rows[0];
     
     // 转换数据为对象数组
     return rows.slice(1).map(row => {
       const item = {};
-      headers.forEach((header, index) => {
+      columnHeaders.forEach((header, index) => {
         item[header] = row[index] || '';
       });
       return item;
