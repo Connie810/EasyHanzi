@@ -46,7 +46,7 @@ async function getSheetList(token, spreadsheetToken) {
   try {
     console.log('正在获取工作表列表...');
     
-    const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/metainfo`;
+    const url = `https://open.feishu.cn/open-apis/sheets/v3/spreadsheets/${spreadsheetToken}/sheets`;
     console.log('请求 URL:', url);
 
     const response = await axios.get(url, {
@@ -61,11 +61,19 @@ async function getSheetList(token, spreadsheetToken) {
     }
 
     const sheets = response.data.data.sheets;
-    console.log('获取到的工作表:', sheets.map(s => ({
-      title: s.title,
-      sheet_id: s.sheet_id
-    })));
-    return sheets;
+    console.log('API 响应数据:', JSON.stringify(response.data.data, null, 2));
+
+    if (!sheets || !Array.isArray(sheets)) {
+      throw new Error('未获取到工作表列表');
+    }
+
+    const processedSheets = sheets.map(sheet => ({
+      title: sheet.title,
+      sheet_id: sheet.sheet_id
+    }));
+
+    console.log('处理后的工作表数据:', processedSheets);
+    return processedSheets;
   } catch (error) {
     console.error('获取工作表列表错误:', error);
     if (error.response) {
