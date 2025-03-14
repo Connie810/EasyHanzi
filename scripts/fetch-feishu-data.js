@@ -45,7 +45,10 @@ async function getFeishuToken() {
 async function getSheetList(token, spreadsheetToken) {
   try {
     console.log('正在获取工作表列表...');
-    const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/sheets`;
+    
+    const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/metainfo`;
+    console.log('请求 URL:', url);
+
     const response = await axios.get(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -62,6 +65,12 @@ async function getSheetList(token, spreadsheetToken) {
     return sheets;
   } catch (error) {
     console.error('获取工作表列表错误:', error);
+    if (error.response) {
+      console.error('错误详情:', {
+        状态码: error.response.status,
+        响应数据: error.response.data
+      });
+    }
     throw error;
   }
 }
