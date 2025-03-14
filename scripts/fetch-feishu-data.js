@@ -108,8 +108,8 @@ async function getSheetInfo(token, spreadsheetToken) {
       throw new Error('缺少访问令牌或电子表格ID');
     }
     
-    // 请求工作表信息
-    const response = await feishuAPI.get(`/sheets/v3/spreadsheets/${spreadsheetToken}/sheets`, {
+    // 请求工作表信息 - 使用正确的API路径
+    const response = await feishuAPI.get(`/sheets/v3/spreadsheets/${spreadsheetToken}/sheets/query`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
