@@ -15,7 +15,12 @@ const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET;
 const FEISHU_SPREADSHEET_TOKEN = process.env.FEISHU_SPREADSHEET_TOKEN;
 
 // 工作表名称配置
-const SHEET_NAMES = ['Courses', 'Characters', 'Words', 'Sentences'];
+const SHEET_RANGES = [
+  'Courses!A1:Z3000',
+  'Characters!A1:Z3000',
+  'Words!A1:Z3000',
+  'Sentences!A1:Z3000'
+];
 
 // 创建 axios 实例
 const feishuAPI = axios.create({
@@ -45,106 +50,72 @@ async function getFeishuToken() {
   }
 }
 
-// 获取工作表数据
-async function getSheetData(token, spreadsheetToken, sheetName) {
-  try {
-    console.log(`正在获取工作表 ${sheetName} 的数据...`);
-    
-    const rangeApi = `${sheetName}!A1:Z3000`;
-    const response = await feishuAPI.get(`/sheets/v2/spreadsheets/${spreadsheetToken}/values/${rangeApi}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
-      params: {
-        valueRenderOption: 'ToString'
-      }
-    });
-    
-    if (response.data.code !== 0) {
-      throw new Error(`获取工作表数据失败: ${response.data.msg}`);
-    }
-    
-    const rows = response.data.data.values || [];
-    if (rows.length < 2) {
-      console.warn(`警告: 工作表 ${sheetName} 数据为空或只有表头`);
-      return [];
-    }
-    
-    const headers = rows[0];
-    const data = rows.slice(1).map(row => {
+// 处理表格数据
+function processSheetData(valueRange) {
+  if (!valueRange || !valueRange.values || valueRange.values.length < 2) {
+    return [];
+  }
+
+  const headers = valueRange.values[0];
+  return valueRange.values.slice(1)
+    .map(row => {
       const item = {};
       headers.forEach((header, index) => {
         item[header] = row[index] || '';
       });
       return item;
-    }).filter(item => Object.values(item).some(v => v !== ''));
-    
-    console.log(`工作表 ${sheetName} 数据获取成功:`, {
-      总行数: rows.length,
-      有效数据行: data.length
-    });
-    
-    return data;
-  } catch (error) {
-    if (error.response?.status === 404) {
-      console.error(`工作表 ${sheetName} 不存在或无法访问`);
-      console.error('完整错误信息:', error.response?.data);
-      return [];
-    }
-    throw error;
-  }
+    })
+    .filter(item => Object.values(item).some(v => v !== ''));
 }
 
 // 主函数
 async function fetchAndConvertData() {
   try {
     console.log('开始从飞书获取数据...');
-    console.log('使用的电子表格 Token:', FEISHU_SPREADSHEET_TOKEN);
     
-    // 先获取电子表格元数据
     const token = await getFeishuToken();
     console.log('成功获取访问令牌');
     
-    // 获取电子表格信息
-    const metaResponse = await feishuAPI.get(`/sheets/v2/spreadsheets/${FEISHU_SPREADSHEET_TOKEN}/sheets`, {
+    // 使用批量读取接口获取所有工作表数据
+    const ranges = SHEET_RANGES.join(',');
+    const url = `/sheets/v2/spreadsheets/${FEISHU_SPREADSHEET_TOKEN}/values_batch_get`;
+    
+    const response = await feishuAPI.get(url, {
       headers: {
         'Authorization': `Bearer ${token}`
+      },
+      params: {
+        ranges,
+        valueRenderOption: 'ToString'
       }
     });
-    
-    if (metaResponse.data.code !== 0) {
-      throw new Error(`获取电子表格信息失败: ${metaResponse.data.msg}`);
+
+    if (response.data.code !== 0) {
+      throw new Error(`获取表格数据失败: ${response.data.msg}`);
     }
-    
-    const sheets = metaResponse.data.data.sheets;
-    console.log('获取到的工作表列表:', sheets.map(s => s.title));
-    
-    const results = {};
-    for (const sheetName of SHEET_NAMES) {
-      const sheet = sheets.find(s => s.title === sheetName);
-      if (!sheet) {
-        console.warn(`警告: 未找到工作表 ${sheetName}`);
-        results[sheetName.toLowerCase()] = [];
-        continue;
-      }
-      const data = await getSheetData(token, FEISHU_SPREADSHEET_TOKEN, sheet.title);
-      results[sheetName.toLowerCase()] = data;
-    }
-    
+
+    const valueRanges = response.data.data.valueRanges;
+    console.log('成功获取所有工作表数据');
+
+    // 处理每个工作表的数据
+    const appData = {
+      lastUpdated: new Date().toISOString(),
+      courses: processSheetData(valueRanges[0]),
+      characters: processSheetData(valueRanges[1]),
+      words: processSheetData(valueRanges[2]),
+      sentences: processSheetData(valueRanges[3])
+    };
+
     // 验证数据
-    const hasData = Object.values(results).some(arr => arr.length > 0);
+    const hasData = Object.values(appData).some(arr => 
+      Array.isArray(arr) && arr.length > 0
+    );
+
     if (!hasData) {
       throw new Error('所有工作表都没有获取到有效数据');
     }
-    
-    const appData = {
-      lastUpdated: new Date().toISOString(),
-      courses: results.courses || [],
-      characters: results.characters || [],
-      words: results.words || [],
-      sentences: results.sentences || []
-    };
-    
+
+    // 保存数据
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(appData, null, 2));
     console.log(`数据已保存到: ${OUTPUT_FILE}`);
     console.log('数据统计:', {
