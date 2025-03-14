@@ -14,6 +14,14 @@ const FEISHU_APP_ID = process.env.FEISHU_APP_ID;
 const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET;
 const FEISHU_SPREADSHEET_TOKEN = process.env.FEISHU_SPREADSHEET_TOKEN;
 
+// 工作表 ID 配置
+const SHEET_IDS = {
+  courses: 'X7W9ze',
+  characters: 'fdcb01',
+  words: 'hdzJpm',
+  sentences: 'N9fPOg'
+};
+
 // 获取飞书访问令牌
 async function getFeishuToken() {
   try {
@@ -36,19 +44,14 @@ async function getFeishuToken() {
 // 从飞书表格获取数据
 async function getSheetData(token, spreadsheetToken, sheetId) {
   try {
-    console.log(`正在获取表格数据: ${sheetId}`);
-    console.log(`使用的 spreadsheetToken: ${spreadsheetToken}`);
-
-    if (!spreadsheetToken) {
-      throw new Error('spreadsheetToken 未设置');
-    }
-
+    console.log(`正在获取表格数据，sheet_id: ${sheetId}`);
+    
     const requestHeaders = {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     };
     
-    const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!A1:Z1000`;
+    const url = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!A1:Z3000`;
     console.log(`请求 URL: ${url}`);
     
     const response = await axios.get(url, { headers: requestHeaders });
@@ -103,10 +106,10 @@ async function fetchAndConvertData() {
     
     // 获取各个表格的数据
     const [courses, characters, words, sentences] = await Promise.all([
-      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, 'Courses'),
-      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, 'Characters'),
-      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, 'Words'),
-      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, 'Sentences')
+      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, SHEET_IDS.courses),
+      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, SHEET_IDS.characters),
+      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, SHEET_IDS.words),
+      getSheetData(token, FEISHU_SPREADSHEET_TOKEN, SHEET_IDS.sentences)
     ]);
     
     // 组合数据
