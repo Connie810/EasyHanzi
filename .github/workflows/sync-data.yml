@@ -9,22 +9,29 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
       
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
           node-version: '14'
           
+      - name: Create directories
+        run: |
+          mkdir -p data/output
+          
       - name: Install dependencies
-        run: npm install axios ali-oss
+        run: |
+          npm init -y
+          npm install axios ali-oss
         
       - name: Fetch and convert data
         run: node scripts/fetch-feishu-data.js
         env:
           FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
-          FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
+          FEISHU_SPREADSHEET_TOKEN: ${{ secrets.FEISHU_SPREADSHEET_TOKEN }}
         
       - name: Upload to Aliyun OSS
         run: node scripts/upload-to-oss.js
