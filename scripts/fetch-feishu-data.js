@@ -229,13 +229,30 @@ function processSheetData(valueRange) {
       headers.forEach((header, index) => {
         // 只有当表头存在且不为空时才添加属性
         if (header && header.trim()) {
-          item[header] = (index < row.length) ? (row[index] || '') : '';
+          const value = index < row.length ? row[index] : '';
+          // 特殊处理icon字段，确保即使为空也会被包含在数据中
+          if (header === 'icon') {
+            item[header] = value || '';
+          } else {
+            item[header] = value || '';
+          }
         }
       });
       return item;
     })
     // 过滤掉完全空的行
     .filter(item => Object.values(item).some(v => v !== ''));
+  
+  // 添加数据验证日志
+  if (headers.includes('icon')) {
+    console.log(`工作表 ${valueRange.range} 包含icon字段`);
+    const iconStats = processedData.reduce((acc, item) => {
+      acc.total++;
+      if (item.icon) acc.withIcon++;
+      return acc;
+    }, { total: 0, withIcon: 0 });
+    console.log(`图标统计: 总计${iconStats.total}条数据，其中${iconStats.withIcon}条包含图标`);
+  }
   
   console.log(`工作表 ${valueRange.range} 处理完成，共 ${processedData.length} 条数据`);
   return processedData;
