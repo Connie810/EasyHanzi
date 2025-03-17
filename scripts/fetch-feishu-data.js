@@ -220,6 +220,7 @@ function processSheetData(valueRange) {
   // 提取表头和数据行
   const headers = valueRange.values[0];
   const rows = valueRange.values.slice(1);
+  
   // 转换为对象数组
   const processedData = rows
     .map((row, rowIndex) => {
@@ -246,10 +247,9 @@ function processSheetData(valueRange) {
     })
     .filter(item => Object.values(item).some(v => v !== ''));
 
-  // 添加课程数据的详细日志
-  console.log('处理后的课程数据:', JSON.stringify(processedData, null, 2));
-
+  console.log(`工作表 ${valueRange.range} 处理完成，共 ${processedData.length} 条数据`);
   return processedData;
+}
 
 /**
  * 上传数据到阿里云OSS
