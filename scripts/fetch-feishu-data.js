@@ -229,11 +229,12 @@ function processSheetData(valueRange) {
         if (header && header.trim()) {
           const value = index < row.length ? row[index] : '';
           
-          // 处理icon字段的超链接数据，并添加详细日志
+          // 处理icon字段的超链接数据
           if (header === 'icon') {
             console.log(`处理第 ${rowIndex + 1} 行的 icon 数据:`, JSON.stringify(value));
             if (value && typeof value === 'object') {
-              item[header] = value[0]?.link || '';
+              // 优先使用 link，如果 link 为空则使用 text
+              item[header] = value[0]?.link || value[0]?.text || '';
             } else {
               item[header] = value || '';
             }
