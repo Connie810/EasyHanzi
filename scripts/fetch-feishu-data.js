@@ -226,8 +226,15 @@ function processSheetData(valueRange) {
       const item = {};
       headers.forEach((header, index) => {
         if (header && header.trim()) {
-          // 直接使用单元格的值，不需要特殊处理
-          item[header] = index < row.length ? (row[index] || '') : '';
+          const value = index < row.length ? row[index] : '';
+          
+          // 处理icon字段的超链接数据
+          if (header === 'icon' && value && typeof value === 'object') {
+            // 提取超链接的URL
+            item[header] = value[0]?.link || '';
+          } else {
+            item[header] = value || '';
+          }
         }
       });
       return item;
