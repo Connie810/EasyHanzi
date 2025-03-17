@@ -222,16 +222,21 @@ function processSheetData(valueRange) {
   const rows = valueRange.values.slice(1);
   // 转换为对象数组
   const processedData = rows
-    .map(row => {
+    .map((row, rowIndex) => {
       const item = {};
       headers.forEach((header, index) => {
         if (header && header.trim()) {
           const value = index < row.length ? row[index] : '';
           
-          // 处理icon字段的超链接数据
-          if (header === 'icon' && value && typeof value === 'object') {
-            // 提取超链接的URL
-            item[header] = value[0]?.link || '';
+          // 处理icon字段的超链接数据，并添加详细日志
+          if (header === 'icon') {
+            console.log(`处理第 ${rowIndex + 1} 行的 icon 数据:`, JSON.stringify(value));
+            if (value && typeof value === 'object') {
+              item[header] = value[0]?.link || '';
+            } else {
+              item[header] = value || '';
+            }
+            console.log(`处理结果:`, item[header]);
           } else {
             item[header] = value || '';
           }
@@ -241,9 +246,10 @@ function processSheetData(valueRange) {
     })
     .filter(item => Object.values(item).some(v => v !== ''));
 
-  console.log(`工作表 ${valueRange.range} 处理完成，共 ${processedData.length} 条数据`);
+  // 添加课程数据的详细日志
+  console.log('处理后的课程数据:', JSON.stringify(processedData, null, 2));
+
   return processedData;
-}
 
 /**
  * 上传数据到阿里云OSS
